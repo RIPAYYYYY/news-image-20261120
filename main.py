@@ -443,20 +443,35 @@ def build_page():
 def main():
     build_page()
     data = encode_png()
-    targets = []
+
+    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
+    primary = os.path.join(out_dir, "entry.png")
+    beside = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "entry.png")
+
+    # The output directory is where the PNG has to land; create it if the
+    # host has not, but a failure here must not stop us before we try.
     try:
-        os.makedirs("/output", exist_ok=True)
-        targets.append("/output/entry.png")
+        os.makedirs(out_dir, exist_ok=True)
     except OSError:
         pass
-    here = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                        "entry.png")
-    if here not in targets:
-        targets.append(here)
-    for path in targets:
-        with open(path, "wb") as fh:
-            fh.write(data)
-    print("wrote", len(data), "bytes to", ", ".join(targets))
+
+    # Write the primary target first, then the copy beside this script as a
+    # best-effort extra. Each write stands on its own: a target that cannot
+    # be opened (e.g. a read-only script directory) is skipped, never fatal,
+    # as long as at least one copy of the page made it to disk.
+    written = []
+    for path in dict.fromkeys((primary, beside)):
+        try:
+            with open(path, "wb") as fh:
+                fh.write(data)
+        except OSError:
+            continue
+        written.append(path)
+
+    if not written:
+        raise SystemExit("entry.png could not be written anywhere")
+    print("wrote", len(data), "bytes to", ", ".join(written))
 
 
 if __name__ == "__main__":
